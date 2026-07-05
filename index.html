@@ -7,7 +7,7 @@
     <title>Browser Anki</title>
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=17" />
+    <link rel="stylesheet" href="styles.css?v=18" />
   </head>
   <body>
     <div class="app-shell">
@@ -83,6 +83,7 @@
             <button class="tab-button active" type="button" data-view="add">追加</button>
             <button class="tab-button" type="button" data-view="import">CSV</button>
             <button class="tab-button" type="button" data-view="browse">一覧</button>
+            <button class="tab-button" type="button" data-view="schedule">スケジュール</button>
             <button class="tab-button" type="button" data-view="stats">記録</button>
             <button class="tab-button" type="button" data-view="settings">設定</button>
           </nav>
@@ -178,6 +179,16 @@
             <div id="history-list" class="history-list"></div>
           </section>
 
+          <section id="schedule-view" class="view" aria-labelledby="schedule-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">計画</p>
+                <h1 id="schedule-title">スケジュールモード</h1>
+              </div>
+            </div>
+            <div id="schedule-panel" class="schedule-panel"></div>
+          </section>
+
           <section id="settings-view" class="view" aria-labelledby="settings-title">
             <div class="view-heading">
               <div>
@@ -194,6 +205,6 @@
     <input id="file-input" type="file" accept=".json,.csv,application/json,text/csv" hidden />
     <input id="csv-file-input" type="file" accept=".csv,text/csv" hidden />
     <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
-    <script type="module" src="app.js?v=17"></script>
+    <script type="module" src="app.js?v=18"></script>
   </body>
 </html>

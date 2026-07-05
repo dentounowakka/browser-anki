@@ -49,6 +49,8 @@ const state = {
   csvDraft: null,
   reviewAheadDays: 0,
   previewSession: null,
+  schedules: [],
+  activeScheduleId: null,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -80,6 +82,7 @@ const selectors = {
   fileInput: $("#file-input"),
   csvFileInput: $("#csv-file-input"),
   csvImportPanel: $("#csv-import-panel"),
+  schedulePanel: $("#schedule-panel"),
   toastRegion: $("#toast-region"),
   storageState: $("#storage-state"),
 };
@@ -122,6 +125,8 @@ function loadUiState() {
     if (saved.previewSession && typeof saved.previewSession.days === "number") {
       state.previewSession = { active: Boolean(saved.previewSession.active), days: saved.previewSession.days };
     }
+    if (Array.isArray(saved.schedules)) state.schedules = saved.schedules.map(normalizeSchedule).filter(Boolean);
+    if (typeof saved.activeScheduleId === "string") state.activeScheduleId = saved.activeScheduleId;
     state.reviewStarted = Boolean(saved.reviewStarted);
   } catch {
     localStorage.removeItem(UI_STORAGE_KEY);
@@ -139,6 +144,8 @@ function saveUiState() {
     reviewAheadDays: state.reviewAheadDays,
     previewSession: state.previewSession,
     reviewStarted: state.reviewStarted,
+    schedules: state.schedules,
+    activeScheduleId: state.activeScheduleId,
   };
   localStorage.setItem(UI_STORAGE_KEY, JSON.stringify(payload));
 }
@@ -318,6 +325,61 @@ function numericTagsForCurrentDeck() {
     .map((tag) => ({ tag, number: Number(tag) }))
     .filter((item) => Number.isInteger(item.number))
     .sort((a, b) => a.number - b.number);
+}
+
+function cardsForDeckId(deckId) {
+  if (deckId === "all") return state.cards;
+  return state.cards.filter((card) => card.deckId === deckId);
+}
+
+function numericTagsForDeck(deckId) {
+  return [...new Set(cardsForDeckId(deckId).flatMap((card) => card.tags))]
+    .filter(isNumericTag)
+    .map((tag) => ({ tag, number: Number(tag) }))
+    .sort((a, b) => a.number - b.number);
+}
+
+function tagsForSchedule(schedule) {
+  const start = Number(schedule.start);
+  const end = Number(schedule.end);
+  if (!Number.isInteger(start) || !Number.isInteger(end)) return [];
+  const min = Math.min(start, end);
+  const max = Math.max(start, end);
+  return numericTagsForDeck(schedule.deckId)
+    .filter((item) => item.number >= min && item.number <= max)
+    .map((item) => item.tag);
+}
+
+function cardsForSchedule(schedule) {
+  const tags = new Set(tagsForSchedule(schedule));
+  if (!tags.size) return [];
+  return cardsForDeckId(schedule.deckId).filter((card) => card.tags.some((tag) => tags.has(tag)));
+}
+
+function daysUntilDeadline(deadline) {
+  if (!deadline) return 1;
+  const end = new Date(`${deadline}T23:59:59`);
+  const diff = end.getTime() - now();
+  return Math.max(1, Math.ceil(diff / DAY));
+}
+
+function normalizeSchedule(schedule) {
+  if (!schedule || typeof schedule !== "object") return null;
+  const deckId = String(schedule.deckId ?? "");
+  const start = String(schedule.start ?? "").trim();
+  const end = String(schedule.end ?? "").trim();
+  const deadline = String(schedule.deadline ?? "").trim();
+  if (!deckId || !start || !end || !deadline) return null;
+  return {
+    id: String(schedule.id ?? uid("schedule")),
+    name: String(schedule.name || "スケジュール"),
+    deckId,
+    start,
+    end,
+    deadline,
+    createdAt: Number(schedule.createdAt ?? now()),
+    updatedAt: Number(schedule.updatedAt ?? now()),
+  };
 }
 
 function cardMatchesSelectedTags(card) {
@@ -645,6 +707,7 @@ function render() {
   renderStats();
   renderSettings();
   renderCsvPanel();
+  renderSchedules();
 }
 
 function syncSelectedTags() {
@@ -1089,6 +1152,138 @@ function renderStats() {
     </div>
     ${historyMarkup}
   `;
+}
+
+function renderSchedules() {
+  if (!selectors.schedulePanel) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const selectedDeckId = state.currentDeckId === "all" ? (state.decks[0]?.id ?? "") : state.currentDeckId;
+  const deckOptions = state.decks.map((deck) => `
+    <option value="${escapeHtml(deck.id)}"${deck.id === selectedDeckId ? " selected" : ""}>${escapeHtml(deck.name)}</option>
+  `).join("");
+  const items = state.schedules.map(scheduleMarkup).join("");
+
+  selectors.schedulePanel.innerHTML = `
+    <form class="schedule-form editor-grid" data-schedule-form>
+      <label>
+        <span>名前</span>
+        <input name="name" type="text" placeholder="例: 7月英単語" autocomplete="off" />
+      </label>
+      <label>
+        <span>期限日</span>
+        <input name="deadline" type="date" min="${escapeHtml(today)}" value="${escapeHtml(today)}" required />
+      </label>
+      <label>
+        <span>デッキ</span>
+        <select name="deckId" required>${deckOptions}</select>
+      </label>
+      <label>
+        <span>開始番号タグ</span>
+        <input name="start" type="number" step="1" placeholder="1" required />
+      </label>
+      <label>
+        <span>終了番号タグ</span>
+        <input name="end" type="number" step="1" placeholder="100" required />
+      </label>
+      <div class="form-actions wide">
+        <button class="primary-button" type="submit">登録</button>
+      </div>
+    </form>
+    <div class="schedule-list">
+      ${items || emptyMarkup("スケジュールがありません", "期限日・デッキ・番号範囲を登録すると、ここから出題範囲を呼び出せます。")}
+    </div>
+  `;
+}
+
+function scheduleMarkup(schedule) {
+  const cards = cardsForSchedule(schedule);
+  const due = dueCards(cards).length;
+  const daysLeft = daysUntilDeadline(schedule.deadline);
+  const perDay = Math.max(1, Math.ceil(cards.length / daysLeft));
+  const active = state.activeScheduleId === schedule.id ? " active" : "";
+  return `
+    <article class="schedule-item${active}">
+      <div>
+        <h2>${escapeHtml(schedule.name)}</h2>
+        <div class="review-meta">
+          <span>${escapeHtml(getDeckName(schedule.deckId))}</span>
+          <span>${escapeHtml(schedule.start)}-${escapeHtml(schedule.end)}</span>
+          <span>期限 ${escapeHtml(schedule.deadline)}</span>
+          <span>残り ${daysLeft}日</span>
+          <span>${cards.length}枚</span>
+          <span>期限 ${due}枚</span>
+          <span>目安 ${perDay}枚/日</span>
+        </div>
+      </div>
+      <div class="schedule-actions">
+        <button class="primary-button" type="button" data-apply-schedule="${escapeHtml(schedule.id)}">学習</button>
+        <button class="danger-button" type="button" data-delete-schedule="${escapeHtml(schedule.id)}">削除</button>
+      </div>
+    </article>
+  `;
+}
+
+function addSchedule(event) {
+  event.preventDefault();
+  const data = new FormData(event.target);
+  const deckId = String(data.get("deckId") || "");
+  const start = String(data.get("start") || "").trim();
+  const end = String(data.get("end") || "").trim();
+  const deadline = String(data.get("deadline") || "").trim();
+  const deckName = getDeckName(deckId);
+  const name = String(data.get("name") || `${deckName} ${start}-${end}`).trim();
+  const schedule = normalizeSchedule({
+    id: uid("schedule"),
+    name,
+    deckId,
+    start,
+    end,
+    deadline,
+    createdAt: now(),
+    updatedAt: now(),
+  });
+
+  if (!schedule || !Number.isInteger(Number(start)) || !Number.isInteger(Number(end))) {
+    toast("期限日、デッキ、開始番号、終了番号を入力してください");
+    return;
+  }
+
+  state.schedules = state.schedules.concat(schedule);
+  state.activeScheduleId = schedule.id;
+  saveUiState();
+  renderSchedules();
+  toast("スケジュールを登録しました");
+}
+
+function applySchedule(scheduleId) {
+  const schedule = state.schedules.find((item) => item.id === scheduleId);
+  if (!schedule) return;
+  const tags = tagsForSchedule(schedule);
+  if (!tags.length) {
+    toast("この範囲に一致する番号タグがありません");
+    return;
+  }
+
+  state.activeScheduleId = schedule.id;
+  state.currentDeckId = schedule.deckId;
+  state.selectedTags = tags;
+  state.tagRangeStart = schedule.start;
+  state.tagRangeEnd = schedule.end;
+  state.area = "study";
+  state.reviewStarted = false;
+  state.activeReviewCardId = null;
+  state.answerVisible = false;
+  state.typedAnswer = "";
+  render();
+  toast(`${tags.length}個の番号タグを出題範囲にしました`);
+}
+
+function deleteSchedule(scheduleId) {
+  state.schedules = state.schedules.filter((schedule) => schedule.id !== scheduleId);
+  if (state.activeScheduleId === scheduleId) state.activeScheduleId = null;
+  saveUiState();
+  renderSchedules();
+  toast("スケジュールを削除しました");
 }
 
 function renderSettings() {
@@ -2237,6 +2432,10 @@ function bindEvents() {
       stopReviewAhead();
     } else if (target.hasAttribute("data-create-mistake-deck")) {
       createTodayMistakeDeck();
+    } else if (target.dataset.applySchedule) {
+      applySchedule(target.dataset.applySchedule);
+    } else if (target.dataset.deleteSchedule) {
+      deleteSchedule(target.dataset.deleteSchedule);
     } else if (target.hasAttribute("data-cancel-deck-create")) {
       hideDeckCreator();
     } else if (target.hasAttribute("data-reset-deck-config")) {
@@ -2260,6 +2459,8 @@ function bindEvents() {
       applyTagRange(event.target);
     } else if (event.target.matches("[data-deck-create-form]")) {
       addDeck(event);
+    } else if (event.target.matches("[data-schedule-form]")) {
+      addSchedule(event);
     }
   });
 
