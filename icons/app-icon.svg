@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Browser Anki icon">
+  <rect width="128" height="128" rx="24" fill="#1f6f68"/>
+  <path d="M31 34c0-6.1 4.9-11 11-11h39.5L97 38.4V94c0 6.1-4.9 11-11 11H42c-6.1 0-11-4.9-11-11V34Z" fill="#f7f4ed"/>
+  <path d="M81 23v15.8c0 3.4 2.8 6.2 6.2 6.2H97" fill="#e9b44c"/>
+  <path d="M47 54h34M47 68h34M47 82h23" stroke="#24312f" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="91" cy="89" r="16" fill="#d95d39"/>
+  <path d="M84 89h14M91 82v14" stroke="#fffaf2" stroke-width="6" stroke-linecap="round"/>
+</svg>

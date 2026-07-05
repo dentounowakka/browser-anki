@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1f6f68" />
+    <title>Browser Anki</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/app-icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css?v=17" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <img src="icons/app-icon.svg" alt="" class="brand-icon" />
+          <div class="brand-copy">
+            <span class="brand-title">Browser Anki</span>
+            <span id="storage-state" class="storage-state">Local</span>
+          </div>
+        </div>
+        <nav class="mode-tabs" aria-label="画面切り替え">
+          <button class="mode-button active" type="button" data-area="study">学習</button>
+          <button class="mode-button" type="button" data-area="manage">管理</button>
+        </nav>
+        <div class="top-actions" aria-label="データ操作">
+          <button id="import-data" class="icon-button" type="button" title="読み込み" aria-label="読み込み">
+            <span aria-hidden="true">+</span>
+            <span class="action-label">読み込み</span>
+          </button>
+          <button id="export-data" class="icon-button" type="button" title="書き出し" aria-label="書き出し">
+            <span aria-hidden="true">&#8595;</span>
+            <span class="action-label">書き出し</span>
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar" aria-label="デッキ">
+        <div class="sidebar-header">
+          <div>
+            <p class="eyebrow">&#12487;&#12483;&#12461;</p>
+            <h2>デッキ</h2>
+          </div>
+          <button id="new-deck" class="icon-button" type="button" title="デッキ追加" aria-label="デッキ追加">
+            <span aria-hidden="true">+</span>
+          </button>
+        </div>
+        <div id="deck-list" class="deck-list"></div>
+        <div class="sidebar-metrics">
+          <div>
+            <span id="metric-due">0</span>
+            <small>&#26399;&#38480;</small>
+          </div>
+          <div>
+            <span id="metric-total">0</span>
+            <small>&#26522;</small>
+          </div>
+          <div>
+            <span id="metric-streak">0</span>
+            <small>&#26085;</small>
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <section id="study-area" class="area active" aria-labelledby="review-title">
+          <div class="view-heading">
+            <div>
+              <p id="review-subtitle" class="eyebrow">&#24489;&#32722;</p>
+              <h1 id="review-title">今日の復習</h1>
+            </div>
+            <div class="due-pill">
+              <span id="due-count">0</span>
+              <small>枚</small>
+            </div>
+          </div>
+          <div id="tag-filter" class="tag-filter"></div>
+          <div id="review-stage" class="review-stage"></div>
+        </section>
+
+        <section id="manage-area" class="area" aria-label="管理">
+          <nav class="view-tabs" aria-label="管理メニュー">
+            <button class="tab-button active" type="button" data-view="add">追加</button>
+            <button class="tab-button" type="button" data-view="import">CSV</button>
+            <button class="tab-button" type="button" data-view="browse">一覧</button>
+            <button class="tab-button" type="button" data-view="stats">記録</button>
+            <button class="tab-button" type="button" data-view="settings">設定</button>
+          </nav>
+
+          <section id="add-view" class="view active" aria-labelledby="add-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">Capture</p>
+                <h1 id="add-title">カード追加</h1>
+              </div>
+            </div>
+            <form id="card-form" class="editor-grid">
+              <label>
+                <span>デッキ</span>
+                <select id="card-deck"></select>
+              </label>
+              <label>
+                <span>回答方式</span>
+                <select id="card-answer-mode">
+                  <option value="self">表裏を見て自己採点</option>
+                  <option value="typed">入力してから自己採点</option>
+                </select>
+              </label>
+              <label class="wide">
+                <span>タグ</span>
+                <input id="card-tags" type="text" placeholder="grammar, verbs" autocomplete="off" />
+              </label>
+              <label class="wide">
+                <span>表</span>
+                <textarea id="card-front" required rows="6"></textarea>
+              </label>
+              <label class="wide">
+                <span>裏</span>
+                <textarea id="card-back" required rows="6"></textarea>
+              </label>
+              <label>
+                <span>画像</span>
+                <input id="card-image" type="file" accept="image/*" />
+              </label>
+              <label>
+                <span>画像を表示する面</span>
+                <select id="card-image-side">
+                  <option value="front">表</option>
+                  <option value="back">裏</option>
+                </select>
+              </label>
+              <div id="image-preview" class="image-preview wide"></div>
+              <div class="form-actions wide">
+                <button class="primary-button" type="submit">追加</button>
+                <button id="clear-card-form" class="secondary-button" type="button">クリア</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="import-view" class="view" aria-labelledby="import-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">CSV Import</p>
+                <h1 id="import-title">CSV読み込み</h1>
+              </div>
+              <button id="choose-csv" class="primary-button" type="button">CSVを選択</button>
+            </div>
+            <div id="csv-import-panel" class="csv-panel empty-state">
+              <div>
+                <h2>CSVを選んで列を割り当て</h2>
+                <p>表、裏、タグ、回答方式、デッキ、画像列を読み込み前に指定できます。</p>
+              </div>
+            </div>
+          </section>
+
+          <section id="browse-view" class="view" aria-labelledby="browse-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">Library</p>
+                <h1 id="browse-title">カード一覧</h1>
+              </div>
+              <label class="search-box">
+                <span class="visually-hidden">検索</span>
+                <input id="card-search" type="search" placeholder="表・裏・タグ・デッキを検索" autocomplete="off" />
+              </label>
+            </div>
+            <div id="card-list" class="card-list"></div>
+          </section>
+
+          <section id="stats-view" class="view" aria-labelledby="stats-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">History</p>
+                <h1 id="stats-title">学習記録</h1>
+              </div>
+            </div>
+            <div id="stats-grid" class="stats-grid"></div>
+            <div id="history-list" class="history-list"></div>
+          </section>
+
+          <section id="settings-view" class="view" aria-labelledby="settings-title">
+            <div class="view-heading">
+              <div>
+                <p class="eyebrow">Deck Options</p>
+                <h1 id="settings-title">復習設定</h1>
+              </div>
+            </div>
+            <form id="deck-settings-form" class="editor-grid"></form>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <input id="file-input" type="file" accept=".json,.csv,application/json,text/csv" hidden />
+    <input id="csv-file-input" type="file" accept=".csv,text/csv" hidden />
+    <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="app.js?v=17"></script>
+  </body>
+</html>
